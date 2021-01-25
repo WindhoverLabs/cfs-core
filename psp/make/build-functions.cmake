@@ -80,6 +80,28 @@ function(psp_initialize_airliner_build)
     add_custom_target(start-yamcs 
         COMMAND ${CMAKE_BINARY_DIR}/commander_workspace/bin/yamcs-start /opt/yamcs/ ${CMAKE_BINARY_DIR}/commander_workspace
     )
+        
+    # Add the 'build-file-system' target.  This is used to trigger the steps to embed the initial ramdisk 
+    # after all the build products have been built.
+    add_custom_target(build-file-system)
+        
+    # Parse the OSAL CMake files that will specify the various source files.
+    add_subdirectory(${PARSED_ARGS_OSAL} core/osal)
+                
+    set(TARGET_INCLUDES 
+        ${PSP_SHARED_INC} 
+        ${CMAKE_CURRENT_BINARY_DIR} 
+        ${OSAL_INCS})  
+
+    # Set a higher priority set of includes, if this is a reference build.
+    if(PARSED_ARGS_REFERENCE_INCLUDES)
+        set(TARGET_INCLUDES 
+            ${PROJECT_SOURCE_DIR}/core/mission_inc 
+            ${PROJECT_SOURCE_DIR}/core/platform_inc 
+            ${PROJECT_SOURCE_DIR}/core/platform_inc/cpu1
+            ${TARGET_INCLUDES}
+        )
+    endif()
 
     if(NOT docs)        
         add_custom_target(docs)
@@ -101,27 +123,6 @@ function(psp_initialize_airliner_build)
             if(NOT EXISTS ${PARSED_ARGS_OSAL})
                 message(FATAL_ERROR "*** The path to the OSAL is either incorrect, or does not include source code.")
             endif()
-        
-            # Parse the OSAL CMake files that will specify the various source files.
-            add_subdirectory(${PARSED_ARGS_OSAL} core/osal)
-                
-            set(TARGET_INCLUDES 
-                ${PSP_SHARED_INC} 
-                ${CMAKE_CURRENT_BINARY_DIR} 
-                ${OSAL_INCS})  
-            # Set a higher priority set of includes, if this is a reference build.
-            if(PARSED_ARGS_REFERENCE_INCLUDES)
-                set(TARGET_INCLUDES 
-                    ${PROJECT_SOURCE_DIR}/core/mission_inc 
-                    ${PROJECT_SOURCE_DIR}/core/platform_inc 
-                    ${PROJECT_SOURCE_DIR}/core/platform_inc/cpu1
-                    ${TARGET_INCLUDES}
-                )
-            endif()
-        
-            # Add the 'build-file-system' target.  This is used to trigger the steps to embed the initial ramdisk 
-            # after all the build products have been built.
-            add_custom_target(build-file-system)
         
             psp_add_executable(core-binary 
                 FILE_NAME ${CFE_EXEC_FILE}
