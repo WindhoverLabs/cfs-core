@@ -68,8 +68,8 @@ function(psp_initialize_airliner_build)
     # Generate the XTCE file
     commander_initialize_workspace(commander_workspace
         CONFIG_FILE           ${CMAKE_BINARY_DIR}/wh_defs.yaml
-        XTCE_CONFIG_FILE      ${PROJECT_SOURCE_DIR}/core/tools/commander/xtce_config.yaml
-        WORKSPACE_TEMPLATE    ${PROJECT_SOURCE_DIR}/core/tools/commander/workspace_template
+        XTCE_CONFIG_FILE      ${PROJECT_SOURCE_DIR}/core/base/tools/commander/xtce_config.yaml
+        WORKSPACE_TEMPLATE    ${PROJECT_SOURCE_DIR}/core/base/tools/commander/workspace_template
         WORKSPACE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/commander_workspace
         OUTPUT_DB_FILE        wh_defs.db
         OUTPUT_XTCE_FILE      mdb/cfs.xml
