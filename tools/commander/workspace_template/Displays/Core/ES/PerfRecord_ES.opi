@@ -10,12 +10,12 @@
   <background_color>
     <color red="240" green="240" blue="240" />
   </background_color>
-  <boy_version>1.5.5.202103162101</boy_version>
+  <boy_version>1.6.2.202104092231</boy_version>
   <foreground_color>
     <color red="192" green="192" blue="192" />
   </foreground_color>
   <grid_space>6</grid_space>
-  <height>36</height>
+  <height>18</height>
   <macros>
     <include_parent_macros>true</include_parent_macros>
   </macros>
@@ -28,7 +28,7 @@
   <show_ruler>true</show_ruler>
   <snap_to_geometry>true</snap_to_geometry>
   <widget_type>Display</widget_type>
-  <width>655</width>
+  <width>600</width>
   <wuid>7a03ebb6:17840dde0b7:-6fd0</wuid>
   <x>-1</x>
   <y>-1</y>
@@ -50,12 +50,12 @@
     <foreground_color>
       <color red="192" green="192" blue="192" />
     </foreground_color>
-    <height>36</height>
+    <height>20</height>
     <lock_children>false</lock_children>
     <macros>
       <include_parent_macros>true</include_parent_macros>
     </macros>
-    <name>Grouping Container</name>
+    <name>PerfRecord</name>
     <rules />
     <scale_options>
       <width_scalable>true</width_scalable>
@@ -68,7 +68,7 @@
     <transparent>false</transparent>
     <visible>true</visible>
     <widget_type>Grouping Container</widget_type>
-    <width>655</width>
+    <width>600</width>
     <wuid>7a03ebb6:17840dde0b7:-6894</wuid>
     <x>0</x>
     <y>0</y>
@@ -97,8 +97,8 @@
       </foreground_color>
       <height>18</height>
       <label></label>
-      <name>FilterActual1</name>
-      <pv_name>loc://FilterActual1</pv_name>
+      <name>FilterActual</name>
+      <pv_name>loc://FilterActual</pv_name>
       <pv_value />
       <rules />
       <scale_options>
@@ -116,8 +116,8 @@ $(pv_value)</tooltip>
       <widget_type>Check Box</widget_type>
       <width>18</width>
       <wuid>7a03ebb6:17840dde0b7:-6421</wuid>
-      <x>38</x>
-      <y>6</y>
+      <x>241</x>
+      <y>0</y>
     </widget>
     <widget typeId="org.csstudio.opibuilder.widgets.checkbox" version="1.0.0">
       <actions hook="false" hook_all="false" />
@@ -144,8 +144,8 @@ $(pv_value)</tooltip>
       </foreground_color>
       <height>18</height>
       <label></label>
-      <name>FilterRequest1</name>
-      <pv_name>loc://FilterRequest1</pv_name>
+      <name>FilterRequest</name>
+      <pv_name>loc://FilterRequest</pv_name>
       <pv_value />
       <rules />
       <scale_options>
@@ -163,8 +163,8 @@ $(pv_value)</tooltip>
       <widget_type>Check Box</widget_type>
       <width>18</width>
       <wuid>7a03ebb6:17840dde0b7:-6422</wuid>
-      <x>100</x>
-      <y>6</y>
+      <x>303</x>
+      <y>0</y>
     </widget>
     <widget typeId="org.csstudio.opibuilder.widgets.checkbox" version="1.0.0">
       <actions hook="false" hook_all="false" />
@@ -191,8 +191,8 @@ $(pv_value)</tooltip>
       </foreground_color>
       <height>18</height>
       <label></label>
-      <name>TriggerActual1</name>
-      <pv_name>loc://TriggerActual1</pv_name>
+      <name>TriggerActual</name>
+      <pv_name>loc://TriggerActual</pv_name>
       <pv_value />
       <rules />
       <scale_options>
@@ -210,8 +210,8 @@ $(pv_value)</tooltip>
       <widget_type>Check Box</widget_type>
       <width>18</width>
       <wuid>7a03ebb6:17840dde0b7:-641e</wuid>
-      <x>180</x>
-      <y>6</y>
+      <x>383</x>
+      <y>0</y>
     </widget>
     <widget typeId="org.csstudio.opibuilder.widgets.checkbox" version="1.0.0">
       <actions hook="false" hook_all="false" />
@@ -238,8 +238,8 @@ $(pv_value)</tooltip>
       </foreground_color>
       <height>18</height>
       <label></label>
-      <name>TriggerRequest1</name>
-      <pv_name>loc://TriggerRequest1</pv_name>
+      <name>TriggerRequest</name>
+      <pv_name>loc://TriggerRequest</pv_name>
       <pv_value />
       <rules />
       <scale_options>
@@ -257,8 +257,8 @@ $(pv_value)</tooltip>
       <widget_type>Check Box</widget_type>
       <width>18</width>
       <wuid>7a03ebb6:17840dde0b7:-641f</wuid>
-      <x>242</x>
-      <y>6</y>
+      <x>445</x>
+      <y>0</y>
     </widget>
     <widget typeId="org.csstudio.opibuilder.widgets.Label" version="1.0.0">
       <actions hook="false" hook_all="false" />
@@ -280,7 +280,7 @@ $(pv_value)</tooltip>
       </foreground_color>
       <height>20</height>
       <horizontal_alignment>0</horizontal_alignment>
-      <name>Label_46</name>
+      <name>PerfId</name>
       <rules />
       <scale_options>
         <width_scalable>true</width_scalable>
@@ -288,33 +288,17 @@ $(pv_value)</tooltip>
         <keep_wh_ratio>false</keep_wh_ratio>
       </scale_options>
       <scripts />
-      <text>Performance ID 1</text>
+      <text>$PERFORMANCE_ID</text>
       <tooltip></tooltip>
       <transparent>true</transparent>
       <vertical_alignment>1</vertical_alignment>
       <visible>true</visible>
       <widget_type>Label</widget_type>
-      <width>328</width>
+      <width>230</width>
       <wrap_words>false</wrap_words>
       <wuid>7a03ebb6:17840dde0b7:-6420</wuid>
-      <x>302</x>
-      <y>6</y>
+      <x>0</x>
+      <y>0</y>
     </widget>
-    <widget typeId="org.csstudio.opibuilder.widgets.gridLayout" version="1.0.0">
-      <fill_grids>false</fill_grids>
-      <grid_gap>2</grid_gap>
-      <name>Grid Layout</name>
-      <number_of_columns>5</number_of_columns>
-      <widget_type>Grid Layout</widget_type>
-      <wuid>7a03ebb6:17840dde0b7:-6415</wuid>
-    </widget>
-  </widget>
-  <widget typeId="org.csstudio.opibuilder.widgets.gridLayout" version="1.0.0">
-    <fill_grids>false</fill_grids>
-    <grid_gap>2</grid_gap>
-    <name>Grid Layout</name>
-    <number_of_columns>3</number_of_columns>
-    <widget_type>Grid Layout</widget_type>
-    <wuid>7a03ebb6:17840dde0b7:-6185</wuid>
   </widget>
 </display>
