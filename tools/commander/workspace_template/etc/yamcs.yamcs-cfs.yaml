@@ -1,4 +1,4 @@
-#TODO: Needs to be updated to work with our custom CFS configuration
+#Configuration tested on YAMCS 5.4.0
 services:
   - class: org.yamcs.archive.XtceTmRecorder
   - class: org.yamcs.archive.ParameterRecorder
@@ -23,7 +23,10 @@ services:
         warmupTime: 60
   - class: org.yamcs.tctm.cfs.CfsEventDecoder
     args:
-      msgIds: [0x0808]  
+      msgIds: [0x0815] #Always confirm this ID with CFE_EVS configuration
+      byteOrder: LITTLE_ENDIAN
+      appNameMax: 40
+      eventMsgMax: 122
   - class: org.yamcs.cfdp.CfdpService
     name: cfdp0
     args:
@@ -32,11 +35,11 @@ services:
       localEntities:
         - name: "0.23"
           id: 23
-          bucket: cfdpUp12
+          bucket: cfdpUp
       remoteEntities:
         - name: "0.24"
           id: 24
-          bucket: bucket2
+          bucket: cfdpDown
       receiverFaultHandlers:
         AckLimitReached: suspend
 
@@ -45,6 +48,7 @@ dataLinks:
     class: org.yamcs.tctm.UdpTmDataLink
     stream: tm_realtime
     port: 5011
+    maxLength: 32768 #32KB is the default for CCSDS
     packetPreprocessorClassName: com.windhoverlabs.yamcs.tctm.PacketPreprocessor
 
   - name: tc_realtime
@@ -61,8 +65,9 @@ mdb:
     # Valid loaders are: sheet, xtce or fully qualified name of the class
     - type: "xtce"
       spec: "mdb/cfs-ccsds.xml"
-    - type: "xtce"
-      spec: "mdb/cfs.xml"
+      subLoaders:
+        - type: "xtce"
+          spec: "mdb/cfs.xml"
 
 # Configuration for streams created at server startup
 streamConfig:

@@ -10,12 +10,12 @@
   <background_color>
     <color red="255" green="255" blue="255" />
   </background_color>
-  <boy_version>1.5.3</boy_version>
+  <boy_version>1.5.5.202103012118</boy_version>
   <foreground_color>
     <color red="192" green="192" blue="192" />
   </foreground_color>
   <grid_space>6</grid_space>
-  <height>100</height>
+  <height>110</height>
   <macros>
     <include_parent_macros>true</include_parent_macros>
   </macros>
@@ -35,7 +35,7 @@
   <widget typeId="org.csstudio.opibuilder.widgets.ActionButton" version="2.0.0">
     <actions hook="false" hook_all="false">
       <action type="EXECUTE_JAVASCRIPT">
-        <path>../scripts/RestartApp.js</path>
+        <path></path>
         <scriptText><![CDATA[importPackage(Packages.org.csstudio.opibuilder.scriptUtil);
 importPackage(Packages.org.yamcs.studio.script);
 importPackage(Packages.org.yamcs.studio.data);
@@ -44,10 +44,10 @@ var clockSource =VTypeHelper.getString(display.getWidget('ClockSource').getPrope
 
 var cmd;
 
-if( clockSource == 'Internal' ) {
-    cmd = '/cfs/cfe_time/SetSource(ClockSource: 1)';
+if(clockSource == 'Internal' ) {
+    cmd = '/cfs/$(CPUID)/cfe_time/SetSource(Payload.TimeSource:  "INTERN")';
 } else if (clockSource == 'External' ) {
-    cmd = '/cfs/cfe_time/SetSource(ClockSource: 2)';
+    cmd = '/cfs/$(CPUID)/cfe_time/SetSource(Payload.TimeSource:  "EXTERN")';
 }
 
 Yamcs.issueCommand(cmd);
@@ -77,7 +77,7 @@ Yamcs.issueCommand(cmd);
       <color red="255" green="255" blue="255" />
     </foreground_color>
     <height>25</height>
-    <image></image>
+    <image>../../Resources/send.png</image>
     <name>Action Button</name>
     <push_action_index>0</push_action_index>
     <pv_name></pv_name>
@@ -99,7 +99,7 @@ $(pv_value)</tooltip>
     <width>163</width>
     <wuid>35ebaa52:1509cf6a868:-78ea</wuid>
     <x>54</x>
-    <y>60</y>
+    <y>78</y>
   </widget>
   <widget typeId="org.csstudio.opibuilder.widgets.Label" version="1.0.0">
     <actions hook="false" hook_all="false" />
@@ -135,11 +135,11 @@ $(pv_value)</tooltip>
     <vertical_alignment>1</vertical_alignment>
     <visible>true</visible>
     <widget_type>Label</widget_type>
-    <width>83</width>
+    <width>89</width>
     <wrap_words>false</wrap_words>
     <wuid>35ebaa52:1509cf6a868:-78e9</wuid>
-    <x>18</x>
-    <y>23</y>
+    <x>12</x>
+    <y>41</y>
   </widget>
   <widget typeId="org.csstudio.opibuilder.widgets.combo" version="1.0.0">
     <actions hook="false" hook_all="false" />
@@ -162,7 +162,7 @@ $(pv_value)</tooltip>
     <foreground_color>
       <color red="0" green="0" blue="0" />
     </foreground_color>
-    <height>34</height>
+    <height>32</height>
     <items>
       <s>Internal</s>
       <s>External</s>
@@ -185,6 +185,46 @@ $(pv_value)</tooltip>
     <width>135</width>
     <wuid>35ebaa52:1509cf6a868:-78e7</wuid>
     <x>108</x>
-    <y>18</y>
+    <y>36</y>
+  </widget>
+  <widget typeId="org.csstudio.opibuilder.widgets.Label" version="1.0.0">
+    <actions hook="false" hook_all="false" />
+    <auto_size>false</auto_size>
+    <background_color>
+      <color red="255" green="255" blue="255" />
+    </background_color>
+    <border_color>
+      <color red="0" green="128" blue="255" />
+    </border_color>
+    <border_style>0</border_style>
+    <border_width>1</border_width>
+    <enabled>true</enabled>
+    <font>
+      <opifont.name fontName="Liberation Sans" height="11" style="1" pixels="false">Default Bold</opifont.name>
+    </font>
+    <foreground_color>
+      <color red="0" green="0" blue="0" />
+    </foreground_color>
+    <height>20</height>
+    <horizontal_alignment>1</horizontal_alignment>
+    <name>Label_69</name>
+    <rules />
+    <scale_options>
+      <width_scalable>true</width_scalable>
+      <height_scalable>true</height_scalable>
+      <keep_wh_ratio>false</keep_wh_ratio>
+    </scale_options>
+    <scripts />
+    <text>($(CPUID)) CFE-TIME - Set Source</text>
+    <tooltip></tooltip>
+    <transparent>true</transparent>
+    <vertical_alignment>1</vertical_alignment>
+    <visible>true</visible>
+    <widget_type>Label</widget_type>
+    <width>265</width>
+    <wrap_words>false</wrap_words>
+    <wuid>-c05c465:1785c72c4a1:-6754</wuid>
+    <x>3</x>
+    <y>12</y>
   </widget>
 </display>
