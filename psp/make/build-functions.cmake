@@ -52,7 +52,13 @@ include(${PROJECT_SOURCE_DIR}/core/tools/auto-yamcs/build-functions.cmake)
 #)
 function(psp_buildliner_initialize)
     # Define the function arguments.
-    cmake_parse_arguments(PARSED_ARGS "REFERENCE;APPS_ONLY" "CORE_BINARY;OSAL;STARTUP_SCRIPT;CPU_ID;COMMANDER_WORKSPACE;COMMANDER_WORKSPACE_OVERLAY" "CONFIG;CONFIG_SOURCES;FILESYS;CONFIG_DEFINITION" ${ARGN})
+    cmake_parse_arguments(PARSED_ARGS "REFERENCE;APPS_ONLY" "INSTALL_DIR;CORE_BINARY;CORE_BINARY_NAME;OSAL;STARTUP_SCRIPT;CPU_ID;COMMANDER_WORKSPACE;COMMANDER_DISPLAYS;COMMANDER_WORKSPACE_OVERLAY;COMMANDER_CUSTOM_MACRO_BLOCK" "CONFIG;CONFIG_SOURCES;FILESYS;CONFIG_DEFINITION;COVERAGE_EXCLUSIONS" ${ARGN})
+    
+    # Set the location to put applications and tables, if specified. 
+    if(PARSED_ARGS_INSTALL_DIR)
+        set(INSTALL_DIR ${PARSED_ARGS_INSTALL_DIR})
+    endif()
+    set_property(GLOBAL PROPERTY INSTALL_DIR_PROPERTY ${INSTALL_DIR})
     
     # Create all the target directories the caller requested.
     foreach(dir ${PARSED_ARGS_FILESYS})
@@ -65,39 +71,44 @@ function(psp_buildliner_initialize)
         set_property(GLOBAL PROPERTY IS_REFERENCE_BUILD true)
     endif()
     
-    if(NOT PARSED_ARGS_COMMANDER_WORKSPACE)
-        set(PARSED_ARGS_COMMANDER_WORKSPACE ${CMAKE_BINARY_DIR}/commander_workspace)
-    endif()
+#    if(PARSED_ARGS_COMMANDER_WORKSPACE)
+#        set(COMMANDER_WORKSPACE ${PARSED_ARGS_COMMANDER_WORKSPACE})
+#    else()
+#        set(COMMANDER_WORKSPACE ${CMAKE_BINARY_DIR}/commander_workspace)
+#    endif()
+#    set(COMMANDER_DISPLAYS ${COMMANDER_WORKSPACE}/Displays)
+#    set_property(GLOBAL PROPERTY COMMANDER_WORKSPACE ${COMMANDER_WORKSPACE})
+#    set_property(GLOBAL PROPERTY COMMANDER_DISPLAYS ${COMMANDER_DISPLAYS})
     
     if(NOT PARSED_ARGS_CPU_ID)
         set(PARSED_ARGS_CPU_ID cfs)
     endif()
+    set(BUILDLINER_CDR_CPUID ${PARSED_ARGS_CPU_ID})
+    set_property(GLOBAL PROPERTY BUILDLINER_CDR_CPUID ${BUILDLINER_CDR_CPUID})
+    
+    # Get the latest abbreviated commit hash of the working branch
+    execute_process(
+        COMMAND git log -1 --format=%h
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    
+    configure_file(${PROJECT_SOURCE_DIR}/core/base/psp/fsw/inc/git_version.h.in ${CMAKE_CURRENT_BINARY_DIR}/git_version.h @ONLY)
     
     # Generate the XTCE file
     add_custom_target(ground-tools)
-    commander_initialize_workspace(commander-workspace
-        CONFIG_FILE           ${CMAKE_BINARY_DIR}/wh_defs.yaml
-        XTCE_CONFIG_FILE      ${PROJECT_SOURCE_DIR}/core/base/tools/commander/xtce_config.yaml
-        WORKSPACE_TEMPLATE    ${PROJECT_SOURCE_DIR}/core/base/tools/commander/workspace_template
-        WORKSPACE_OUTPUT_PATH ${PARSED_ARGS_COMMANDER_WORKSPACE}
-        OUTPUT_DB_FILE        wh_defs.db
-        OUTPUT_XTCE_FILE      mdb/${PARSED_ARGS_CPU_ID}.xml
-    )
-    set_target_properties(commander-workspace PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    add_dependencies(ground-tools commander-workspace)
     
-    if(PARSED_ARGS_COMMANDER_WORKSPACE_OVERLAY)
-        add_custom_target(commander_workspace_overlay
-            COMMAND cp -R -f ${PARSED_ARGS_COMMANDER_WORKSPACE_OVERLAY}/* ${PARSED_ARGS_COMMANDER_WORKSPACE}/
-        )
-        add_dependencies(ground-tools commander_workspace_overlay)
-        add_dependencies(commander_workspace_overlay commander-workspace)
-    endif()
-    
-    # Add a build target to launch YAMCS with our newly created workspace.
-    add_custom_target(start-yamcs 
-        COMMAND ${PARSED_ARGS_COMMANDER_WORKSPACE}/bin/yamcs-start /opt/yamcs/ ${PARSED_ARGS_COMMANDER_WORKSPACE}
-    )
+    # Generate the templated code
+    set_property(GLOBAL PROPERTY BASELINER_CONFIG_FILE_PROPERTY ${CMAKE_BINARY_DIR}/wh_defs.yaml)
+    set_property(GLOBAL PROPERTY BASELINER_GENERATED_CODE_DIR_PROPERTY ${CMAKE_CURRENT_BINARY_DIR}/generated_code)
+			        
+    execute_process(
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+	    COMMAND ${CMAKE_COMMAND} -E make_directory generated_code
+	    COMMAND python ${PROJECT_SOURCE_DIR}/core/base/psp/make/parse_configuration.py ${CMAKE_BINARY_DIR}/wh_defs.yaml generated_code ${COMMANDER_WORKSPACE}/Displays/${PARSED_ARGS_CPU_ID}
+	    #COMMAND ${CMAKE_COMMAND} ${CMAKE_CURRENT_BINARY_DIR}/generated_code
+	)
         
     # Add the 'build-file-system' target.  This is used to trigger the steps to embed the initial ramdisk 
     # after all the build products have been built.
@@ -107,10 +118,13 @@ function(psp_buildliner_initialize)
     add_subdirectory(${PARSED_ARGS_OSAL} core/osal)
                 
     set(TARGET_INCLUDES 
-        ${PSP_SHARED_INC} 
+        ${PARSED_ARGS_CONFIG}
         ${CMAKE_CURRENT_BINARY_DIR} 
-        ${OSAL_INCS})  
-
+        ${CFE_INC_DIRS}
+        ${OSAL_INC_DIRS}
+        ${PSP_INC_DIRS}
+        ${PSP_SHARED_INC})
+        
     # Set a higher priority set of includes, if this is a reference build.
     if(PARSED_ARGS_REFERENCE_INCLUDES)
         set(TARGET_INCLUDES 
@@ -120,6 +134,10 @@ function(psp_buildliner_initialize)
             ${TARGET_INCLUDES}
         )
     endif()
+    
+    include_directories(${TARGET_INCLUDES})
+    
+    set_property(GLOBAL PROPERTY TARGET_INCLUDES_PROP ${TARGET_INCLUDES})
 
     if(NOT docs)        
         add_custom_target(docs)
@@ -128,14 +146,18 @@ function(psp_buildliner_initialize)
     if(NOT ${PARSED_ARGS_APPS_ONLY})
         # Copy the startup script into the default location.
         if(EXISTS ${PARSED_ARGS_STARTUP_SCRIPT})
-            file(COPY ${PARSED_ARGS_STARTUP_SCRIPT} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/exe/cf/apps)
+            file(COPY ${PARSED_ARGS_STARTUP_SCRIPT} DESTINATION ${INSTALL_DIR})
         endif()
 
         if(${BUILD_CORE_FROM_SOURCE})
             # Do the things that we only do when we build the core binary from source.
         
             # Set what we're going to call the executable file.
-            set(CFE_EXEC_FILE airliner)
+            if(PARSED_ARGS_CORE_BINARY_NAME)
+                set(CFE_EXEC_FILE ${PARSED_ARGS_CORE_BINARY_NAME})
+            else()
+                set(CFE_EXEC_FILE airliner)
+            endif()
         
             # Parse the OSAL CMake files that will specify the various source files.
             if(NOT EXISTS ${PARSED_ARGS_OSAL})
@@ -150,16 +172,14 @@ function(psp_buildliner_initialize)
                     ${OSAL_SRC}
                     ${PSP_PLATFORM_SRC}
                     ${PSP_SHARED_SRC}
-                
-                INCLUDES
-                    ${TARGET_INCLUDES}
  
                 INSTALL_PATH ${CFE_INSTALL_DIR}
             )
 
             # Add the executable to the combined design+configuration yaml file
             commander_add_module(core
-                TARGET_WORKSPACE   commander-workspace
+                OUTPUT_FILE        ${CMAKE_BINARY_DIR}/wh_defs.yaml
+                YAML_PATH          modules.core
                 TARGET_NAME        core-binary 
             )
         
@@ -189,13 +209,40 @@ function(psp_buildliner_initialize)
             endif()
         endif()
     endif()
+
+    set(CORE_COVERAGE_EXCLUSIONS 
+        ${PROJECT_SOURCE_DIR}/core/base/ut_assert/src
+        ${PROJECT_SOURCE_DIR}/core/base/osal/src/tests
+        ${PROJECT_SOURCE_DIR}/core/base/osal/src/ut-stubs
+        ${PROJECT_SOURCE_DIR}/core/base/osal/ut_assert/src
+        */unit_test
+        */unit-test
+        */unit_tests
+        */unit-tests
+    )
+
+    add_custom_target(coverage-report)
+    set_target_properties(coverage-report PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    add_custom_target(init-coverage-report 
+        COMMAND ${PROJECT_SOURCE_DIR}/core/base/tools/ci/init_coverage.sh ${CMAKE_BINARY_DIR}
+        COMMAND ${PROJECT_SOURCE_DIR}/core/base/tools/ci/add_exclusions.sh ${CMAKE_BINARY_DIR} ${CORE_COVERAGE_EXCLUSIONS}
+        COMMAND ${PROJECT_SOURCE_DIR}/core/base/tools/ci/add_exclusions.sh ${CMAKE_BINARY_DIR} ${PSP_COVERAGE_EXCLUSIONS}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/
+    )
+
+    add_custom_target(finalize-coverage-report
+        COMMAND ${PROJECT_SOURCE_DIR}/core/base/tools/ci/generate_coverage.sh
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/
+    )
+    add_dependencies(coverage-report finalize-coverage-report)
+    add_dependencies(finalize-coverage-report init-coverage-report)
 endfunction(psp_buildliner_initialize)
 
 
 
 function(psp_add_executable)    
     # Define the function arguments.
-    cmake_parse_arguments(PARSED_ARGS "EXCLUDE_FROM_ALL" "FILE_NAME;INSTALL_PATH;COMPILE_FLAGS;LINK_FLAGS" "SOURCES;INCLUDES;BEFORE_INCLUDES;WRAPPERS" ${ARGN})
+    cmake_parse_arguments(PARSED_ARGS "EXCLUDE_FROM_ALL" "FILE_NAME;INSTALL_PATH;COMPILE_FLAGS;LINK_FLAGS" "SOURCES;LIBS;INCLUDES;BEFORE_INCLUDES;WRAPPERS" ${ARGN})
     
     set(TARGET_NAME ${ARGV0})
     set(TARGET_BINARY_WITHOUT_SYMTAB ${TARGET_NAME}_no_symtab)
@@ -221,12 +268,16 @@ function(psp_add_executable)
         set_target_properties(${TARGET_BINARY} PROPERTIES EXCLUDE_FROM_ALL TRUE)
     endif()
     
-    if(${PARSED_ARGS_COMPILE_FLAGS})
+    if(PARSED_ARGS_LIBS)
+        target_link_libraries(${TARGET_BINARY} PUBLIC ${PARSED_ARGS_LIBS})
+    endif()
+    
+    if(COMPILE_FLAGS OR PARSED_ARGS_COMPILE_FLAGS)
         set_target_properties(${TARGET_BINARY_WITHOUT_SYMTAB} PROPERTIES COMPILE_FLAGS "${COMPILE_FLAGS} ${PARSED_ARGS_COMPILE_FLAGS}")
         set_target_properties(${TARGET_BINARY} PROPERTIES COMPILE_FLAGS "${COMPILE_FLAGS} ${PARSED_ARGS_COMPILE_FLAGS}")
     endif()
-    
-    if(${PARSED_ARGS_LINK_FLAGS})
+
+    if(LINK_FLAGS OR PARSED_ARGS_LINK_FLAGS)
         set_target_properties(${TARGET_BINARY_WITHOUT_SYMTAB} PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PARSED_ARGS_LINK_FLAGS}")
         set_target_properties(${TARGET_BINARY} PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PARSED_ARGS_LINK_FLAGS}")
     endif()
@@ -256,17 +307,6 @@ function(psp_add_executable)
     # because they aren't being used.
     set_target_properties(${TARGET_BINARY_WITHOUT_SYMTAB} PROPERTIES ENABLE_EXPORTS TRUE)
     set_target_properties(${TARGET_BINARY}                PROPERTIES ENABLE_EXPORTS TRUE)
-        
-    # Add in the various flags also supplied by the PSP.
-    if(COMPILE_FLAGS)
-        set_target_properties(${TARGET_BINARY_WITHOUT_SYMTAB} PROPERTIES COMPILE_FLAGS ${COMPILE_FLAGS})
-        set_target_properties(${TARGET_BINARY}                PROPERTIES COMPILE_FLAGS ${COMPILE_FLAGS})
-    endif()
-    if(LINK_FLAGS)
-        set_target_properties(${TARGET_BINARY_WITHOUT_SYMTAB} PROPERTIES LINK_FLAGS ${LINK_FLAGS})
-        set_target_properties(${TARGET_BINARY_WITH_SYMTAB}    PROPERTIES LINK_FLAGS ${LINK_FLAGS})
-        set_target_properties(${TARGET_BINARY}                PROPERTIES LINK_FLAGS ${LINK_FLAGS})
-    endif()
         
     # Link in the various libraries specified by the PSP
     target_link_libraries(${TARGET_BINARY_WITHOUT_SYMTAB} PUBLIC ${LINK_FLAGS} ${PSP_LIBS})
@@ -330,6 +370,9 @@ function(psp_add_test)
         
         SOURCES
             ${PARSED_ARGS_SOURCES}
+            
+        LIBS
+            ${PARSED_ARGS_LIBS}
                 
         INCLUDES
             ${PARSED_ARGS_INCLUDES}
@@ -350,6 +393,9 @@ function(psp_add_test)
             
             LINK_FLAGS
                 " -lgcov --coverage "
+            
+            LIBS
+                ${PARSED_ARGS_LIBS}
                 
             WRAPPERS
                 ${PARSED_ARGS_WRAPPERS}            
@@ -415,6 +461,8 @@ function(psp_buildliner_add_app)
     # Define the application name.
     set(PARSED_ARGS_APP_NAME ${ARGV0})
     cmake_parse_arguments(PARSED_ARGS "EMBEDDED" "DESIGN_DEFINITION" "CONFIG;CONFIG_SOURCES;INCLUDES;CONFIG_DEFINITION;COMPILE_OPTIONS" ${ARGN})
+
+    message("Adding ${PARSED_ARGS_APP_NAME}")
     
     # Set the embedded property, if present.
     if(PARSED_ARGS_EMBEDDED)
@@ -499,7 +547,7 @@ endfunction(psp_buildliner_add_app)
 #)
 function(psp_buildliner_add_app_def)
     set(PARSED_ARGS_TARGET ${ARGV0})
-    cmake_parse_arguments(PARSED_ARGS ""  "FILE;DESIGN_DEFINITION" "COMPILE_OPTIONS;SOURCES;LIBS;INCLUDES;PUBLIC_INCLUDES;DESIGN_DOCS;REFERENCE_CONFIG" ${ARGN})
+    cmake_parse_arguments(PARSED_ARGS ""  "FILE;DESIGN_DEFINITION" "COMPILE_OPTIONS;SOURCES;LIBS;INCLUDES;PUBLIC_INCLUDES;DESIGN_DOCS;REFERENCE_CONFIG;COMMANDER_DISPLAYS" ${ARGN})
     
     get_property(PUBLIC_APP_INCLUDES GLOBAL PROPERTY PUBLIC_APP_INCLUDES_PROPERTY)
     set(PUBLIC_APP_INCLUDES "${PUBLIC_APP_INCLUDES} ${PARSED_ARGS_PUBLIC_INCLUDES}")
@@ -520,71 +568,78 @@ function(psp_buildliner_add_app_def)
     get_property(IS_EMBEDDED GLOBAL PROPERTY ${PARSED_ARGS_TARGET}_EMBEDDED)
 
     if(IS_EMBEDDED)        
-	    target_sources(core-binary PRIVATE ${PARSED_ARGS_SOURCES}) 
-	    target_sources(core-binary_no_symtab PRIVATE ${PARSED_ARGS_SOURCES})
+        target_sources(core-binary PRIVATE ${PARSED_ARGS_SOURCES}) 
+        target_sources(core-binary_no_symtab PRIVATE ${PARSED_ARGS_SOURCES})
         target_include_directories(core-binary PUBLIC ${PARSED_ARGS_INCLUDES})
         target_include_directories(core-binary_no_symtab PUBLIC ${PARSED_ARGS_INCLUDES})
-	    target_include_directories(core-binary PUBLIC ${PUBLIC_APP_INCLUDES})
-	    target_include_directories(core-binary_no_symtab PUBLIC ${PUBLIC_APP_INCLUDES})
+        target_include_directories(core-binary PUBLIC ${PUBLIC_APP_INCLUDES})
+        target_include_directories(core-binary_no_symtab PUBLIC ${PUBLIC_APP_INCLUDES})
+
+        if(PARSED_ARGS_LIBS)
+            target_link_libraries(core-binary PUBLIC ${PARSED_ARGS_LIBS})
+        endif()
 	    
-	    add_custom_target(${PARSED_ARGS_TARGET})
-	    add_dependencies(core-binary ${PARSED_ARGS_TARGET})
-	    if(${PARSED_ARGS_TARGET}_yaml)
-	        add_dependencies(${PARSED_ARGS_TARGET}_yaml ${PARSED_ARGS_TARGET})
-	    endif()
+        add_custom_target(${PARSED_ARGS_TARGET})
+        add_dependencies(core-binary ${PARSED_ARGS_TARGET})
     else()
-	    add_library(${PARSED_ARGS_TARGET} MODULE ${PARSED_ARGS_SOURCES})
-	    add_dependencies(build-file-system ${PARSED_ARGS_TARGET})
-	    set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${INSTALL_DIR})
-	    set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES PREFIX "")
+        add_library(${PARSED_ARGS_TARGET} MODULE ${PARSED_ARGS_SOURCES})
+        add_dependencies(build-file-system ${PARSED_ARGS_TARGET})
+        set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${INSTALL_DIR})
+        set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES PREFIX "")
 	
-	    if(NOT ${PARSED_ARGS_FILE} EQUAL "")
-	        set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES OUTPUT_NAME ${PARSED_ARGS_FILE})
-	    endif()
+        if(NOT ${PARSED_ARGS_FILE} EQUAL "")
+            set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES OUTPUT_NAME ${PARSED_ARGS_FILE})
+        endif()
 	    
         target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${PARSED_ARGS_INCLUDES})
-	    target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${PUBLIC_APP_INCLUDES})
-	    target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${CFE_INC_DIRS})
-	    target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${OSAL_INC_DIRS})
-	    target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${PSP_INC_DIRS})
+        target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${PUBLIC_APP_INCLUDES})
+        target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${CFE_INC_DIRS})
+        target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${OSAL_INC_DIRS})
+        target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${PSP_INC_DIRS})
 	    
-	    if(PARSED_ARGS_SOURCES)
-	        set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES APP_DEFINITION_SRC "${PARSED_ARGS_SOURCES}")
-	    endif()
+        if(PARSED_ARGS_SOURCES)
+            set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES APP_DEFINITION_SRC "${PARSED_ARGS_SOURCES}")
+        endif()
 	    
-	    if(NOT ${PARSED_ARGS_DESIGN_DOCS} EQUAL "")
-	        set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES DESIGN_DOCS_INPUT "${PARSED_ARGS_DESIGN_DOCS}")
-	    endif()
+        if(NOT ${PARSED_ARGS_DESIGN_DOCS} EQUAL "")
+            set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES DESIGN_DOCS_INPUT "${PARSED_ARGS_DESIGN_DOCS}")
+        endif()
 	    
-	    set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES APP_DEFINITION_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES APP_DEFINITION_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 	    
-	    if(NOT ${PARSED_ARGS_COMPILE_OPTIONS} STREQUAL "")
-	        set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES DESIGN_COMPILE_OPTIONS "${PARSED_ARGS_COMPILE_OPTIONS}")
-	    endif()
+        if(NOT ${PARSED_ARGS_COMPILE_OPTIONS} STREQUAL "")
+            set_target_properties(${PARSED_ARGS_TARGET} PROPERTIES DESIGN_COMPILE_OPTIONS "${PARSED_ARGS_COMPILE_OPTIONS}")
+        endif()
+
+        if(PARSED_ARGS_LIBS)
+            target_link_libraries(${PARSED_ARGS_TARGET} PUBLIC ${PARSED_ARGS_LIBS})
+        endif()
 	    
-	    # If this is a reference build, include the reference configuration directories
-	    get_property(IS_REFERENCE_BUILD GLOBAL PROPERTY IS_REFERENCE_BUILD)
-	    if(IS_REFERENCE_BUILD)
-	        if(PARSED_ARGS_REFERENCE_CONFIG)
-	            target_include_directories(${PARSED_ARGS_TARGET} PUBLIC 
-	                ${PARSED_ARGS_REFERENCE_CONFIG})
-	        endif()
-	    endif()
-	endif()
+        # If this is a reference build, include the reference configuration directories
+        get_property(IS_REFERENCE_BUILD GLOBAL PROPERTY IS_REFERENCE_BUILD)
+        if(IS_REFERENCE_BUILD)
+            if(PARSED_ARGS_REFERENCE_CONFIG)
+                target_include_directories(${PARSED_ARGS_TARGET} PUBLIC ${PARSED_ARGS_REFERENCE_CONFIG})
+            endif()
+        endif()
+    endif()
 
     if(IS_EMBEDDED) 
         # Add the core binary file to the combined design+configuration yaml file
         commander_add_module(${PARSED_ARGS_TARGET}
-            TARGET_WORKSPACE   commander-workspace
-            TARGET_NAME        core-binary
+            OUTPUT_FILE        ${CMAKE_BINARY_DIR}/wh_defs.yaml
+            YAML_PATH          modules.apps.modules.${PARSED_ARGS_TARGET}
+            TARGET_NAME        core-binary 
         )
     else()
         # Add the binary file to the combined design+configuration yaml file
         commander_add_module(${PARSED_ARGS_TARGET}
-            TARGET_WORKSPACE   commander-workspace
+            OUTPUT_FILE        ${CMAKE_BINARY_DIR}/wh_defs.yaml
+            YAML_PATH          modules.apps.modules.${PARSED_ARGS_TARGET}
             TARGET_NAME        ${PARSED_ARGS_TARGET}
         )
     endif()
+       
 endfunction(psp_buildliner_add_app_def)
 
 
@@ -613,7 +668,7 @@ endfunction(buildliner_add_app_dependencies)
 
 function(psp_buildliner_add_app_unit_test)
     set(PARSED_ARGS_TARGET ${ARGV0})
-    cmake_parse_arguments(PARSED_ARGS "UTASSERT;NO_MEMCHECK;NO_HELGRIND;NO_MASSIF" "COMPILE_OPTIONS;FILE;VALGRIND_SUPPRESSION_FILE" "SOURCES;LIBS;INCLUDES;WRAPPERS;REFERENCE_CUSTOM_SOURCE" ${ARGN})
+    cmake_parse_arguments(PARSED_ARGS "UTASSERT;NO_MEMCHECK;NO_HELGRIND;NO_MASSIF" "COMPILE_OPTIONS;FILE;VALGRIND_SUPPRESSION_FILE" "SOURCES;LIBS;INCLUDES;WRAPPERS;REFERENCE_CUSTOM_SOURCE;COVERAGE_EXCLUSIONS" ${ARGN})
         
     get_property(PUBLIC_APP_INCLUDES GLOBAL PROPERTY PUBLIC_APP_INCLUDES_PROPERTY)
     separate_arguments(PUBLIC_APP_INCLUDES)
@@ -669,6 +724,9 @@ function(psp_buildliner_add_app_unit_test)
             ${CFE_INC_DIRS}
             ${OSAL_INC_DIRS}
             ${PSP_INC_DIRS}
+            
+        LIBS
+            ${PARSED_ARGS_LIBS}
         
         COMPILE_FLAGS 
             ${PARSED_ARGS_COMPILE_OPTIONS}
@@ -678,6 +736,7 @@ function(psp_buildliner_add_app_unit_test)
     )
     
     if(${GCOV_SUPPORTED})
+
         psp_add_executable(${PARSED_ARGS_TARGET}-gcov
             EXCLUDE_FROM_ALL
 
@@ -701,6 +760,9 @@ function(psp_buildliner_add_app_unit_test)
             
             LINK_FLAGS
                 " -lgcov --coverage "
+            
+            LIBS
+                ${PARSED_ARGS_LIBS}
                 
             WRAPPERS
                 ${PARSED_ARGS_WRAPPERS}
@@ -752,6 +814,18 @@ function(psp_buildliner_add_app_unit_test)
             endif()
         endif()
     endif()
+    
+    # Add unit test exclusions, if defined.
+    if(PARSED_ARGS_COVERAGE_EXCLUSIONS)
+        string (REPLACE ";" " " COVERAGE_EXCLUSIONS_STRING "${PARSED_ARGS_COVERAGE_EXCLUSIONS}")
+        add_custom_target(${PARSED_ARGS_TARGET}-add-ut-coverage-exclusions
+            COMMAND ${PROJECT_SOURCE_DIR}/core/base/tools/ci/add_exclusions.sh ${CMAKE_BINARY_DIR} ${COVERAGE_EXCLUSIONS_STRING}
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/
+        )
+        add_dependencies(${PARSED_ARGS_TARGET}-add-ut-coverage-exclusions init-coverage-report)
+        add_dependencies(finalize-coverage-report ${PARSED_ARGS_TARGET}-add-ut-coverage-exclusions)
+    endif()
+
 endfunction(psp_buildliner_add_app_unit_test)
 
 
@@ -774,7 +848,9 @@ function(psp_buildliner_add_cfe_unit_test)
             ${PARSED_ARGS_SOURCES}
             ${PSP_BB_UT_BSP_SRC}
                 
-        INCLUDES ${PARSED_ARGS_INCLUDES}
+        INCLUDES 
+            ${PARSED_ARGS_INCLUDES}
+            ${TARGET_INCLUDES}
     )
     if(${GCOV_SUPPORTED})
         psp_add_executable(${TEST_NAME}-gcov
@@ -906,6 +982,14 @@ function(psp_buildliner_add_table)
     cmake_parse_arguments(PARSED_ARGS "" "NAME" "SOURCES;INCLUDES;COPY" ${ARGN})
 
     psp_get_app_cflags(${PARSED_ARGS_TARGET} TBL_CFLAGS ${CMAKE_C_FLAGS})
+    
+    get_property(INSTALL_DIR GLOBAL PROPERTY INSTALL_DIR_PROPERTY)
+    
+    # Get the target includes used by all the CMake managed targets
+    #    get_property(TARGET_INCLUDES DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+    #    foreach(INC ${TARGET_INCLUDES})
+    #        list(APPEND FLAGLIST "-I${INC}")
+    #    endforeach(INC ${TARGET_INCLUDES})
 
     if(PARSED_ARGS_NAME AND PARSED_ARGS_SOURCES)
         add_custom_command(
